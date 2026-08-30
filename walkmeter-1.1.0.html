@@ -1,0 +1,297 @@
+<title>Walkmeter</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --fg:#14171c; --mut:#5a6472; --line:#d8dde5; --card:#fff;
+    --go:#1b7f4b; --stop:#a52633; --accent:#1f4fd8; --warn:#8a5a00; --blind:#6b4fa8;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#101319; --fg:#eef1f6; --mut:#9aa5b4; --line:#28303c; --card:#171c24;
+    --go:#3fbc78; --stop:#ef6b78; --accent:#7fa2ff; --warn:#e0aa4a; --blind:#b39ae8;}}
+  :root[data-theme="dark"]{--bg:#101319;--fg:#eef1f6;--mut:#9aa5b4;--line:#28303c;
+    --card:#171c24;--go:#3fbc78;--stop:#ef6b78;--accent:#7fa2ff;--warn:#e0aa4a;--blind:#b39ae8;}
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);margin:0;padding:16px;
+    font:16px/1.5 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    max-width:560px;margin-inline:auto;-webkit-text-size-adjust:100%}
+  h1{font-size:1.15rem;margin:0 0 2px}
+  .sub{color:var(--mut);font-size:.82rem;margin-bottom:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:14px;margin-bottom:12px}
+  .big{font-size:2.6rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+  .band{font-size:1.3rem;font-weight:600;color:var(--accent);font-family:ui-monospace,monospace}
+  .hidden{display:none}
+  .blindbox{border:2px dashed var(--blind);border-radius:12px;padding:18px;text-align:center}
+  .blindbox .lbl{color:var(--blind);font-weight:700;font-size:.9rem;letter-spacing:.03em}
+  .blindbox .why{color:var(--mut);font-size:.8rem;margin-top:6px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--go);
+    margin-right:7px;vertical-align:middle;animation:p 1.4s ease-in-out infinite}
+  @keyframes p{0%,100%{opacity:1}50%{opacity:.25}}
+  @media (prefers-reduced-motion:reduce){.dot{animation:none}}
+  button{width:100%;padding:20px;font-size:1.15rem;font-weight:650;border-radius:12px;
+    border:none;color:#fff;cursor:pointer;-webkit-appearance:none}
+  button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  #go{background:var(--go)} #go[data-on="1"]{background:var(--stop)}
+  #commit{background:var(--blind)} #reveal{background:var(--accent)}
+  #copy{background:var(--accent);padding:14px;font-size:1rem}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:.86rem}
+  .grid div{display:flex;justify-content:space-between;gap:8px;
+    border-bottom:1px dotted var(--line);padding:3px 0}
+  .k{color:var(--mut)} .v{font-variant-numeric:tabular-nums;font-weight:600}
+  label{display:block;font-size:.86rem;color:var(--mut);margin:10px 0 4px}
+  select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;
+    background:var(--bg);color:var(--fg);font:inherit;font-size:.95rem}
+  select:disabled{opacity:.7}
+  textarea{min-height:70px;resize:vertical}
+  pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;
+    font-size:.72rem;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
+  .note{font-size:.78rem;color:var(--mut);margin-top:8px}
+  .warn{color:var(--warn);font-weight:600}
+  .frozen{font-family:ui-monospace,monospace;font-size:.72rem;color:var(--mut)}
+  .hdr{font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--mut);margin-bottom:8px}
+</style>
+
+<h1>Walkmeter</h1>
+<div class="sub">SARScore first-party travelled-distance experiment &middot; disposable, not the
+Essential Path &middot; writes nothing to SARScore &middot; coordinates are never stored</div>
+
+<div class="card">
+  <div class="hdr">Frozen algorithm &mdash; unchanged from v1.0.0</div>
+  <div class="frozen">
+    ALGO v1.1.0 &middot; haversine R=6371000<br>
+    ACC_GATE 25 m &middot; DRIFT_FLOOR 5 m &middot; MAX_JUMP 100 m<br>
+    watchPosition{highAccuracy:true, maximumAge:0, timeout:15000}<br>
+    Retains: previous fix only. No coordinate array. No network request.<br>
+    v1.1.0 changes BLINDING ONLY &mdash; no threshold, filter or start/stop change.
+  </div>
+</div>
+
+<!-- ---------- measurement display, gated ---------- -->
+<div class="card">
+  <div id="blind" class="blindbox">
+    <div class="lbl" id="blindLbl">Measurement hidden</div>
+    <div class="why" id="blindWhy">The result stays hidden until you have committed your own
+      distance judgement, so the number cannot anchor your answer.</div>
+  </div>
+  <div id="reveal-wrap" class="hidden">
+    <div class="big"><span id="m">0.0</span>
+      <span style="font-size:1rem;color:var(--mut)">m</span></div>
+    <div class="band" id="band">&mdash;</div>
+  </div>
+  <div class="note" id="stat">Idle. Tap start at your starting point, before you begin walking.</div>
+</div>
+
+<button id="go">Start walk</button>
+
+<!-- ---------- manual answer, required before reveal ---------- -->
+<div class="card hidden" id="manualCard" style="margin-top:12px">
+  <div class="hdr">Step 1 &mdash; your own judgement</div>
+  <label>&ldquo;How far was it from your starting point to the way into the place?&rdquo;</label>
+  <select id="manual">
+    <option value="">Select the band you would have chosen&hellip;</option>
+    <option value="0_25">0&ndash;25 m</option>
+    <option value="25_75">25&ndash;75 m</option>
+    <option value="75_150">75&ndash;150 m</option>
+    <option value="150_300">150&ndash;300 m</option>
+    <option value="over_300">over 300 m</option>
+  </select>
+  <div class="note warn">Answer from your memory of the walk. Once committed this cannot be
+    changed.</div>
+  <button id="commit" style="margin-top:10px" disabled>Commit manual answer</button>
+</div>
+
+<div class="card hidden" id="revealCard">
+  <div class="hdr">Step 2 &mdash; reveal</div>
+  <div class="note">Manual answer committed at <span id="cAt" class="v"></span>.</div>
+  <button id="reveal" style="margin-top:10px">Reveal measurement</button>
+</div>
+
+<!-- ---------- diagnostics, gated ---------- -->
+<div class="card hidden" id="diagCard">
+  <div class="hdr">Diagnostics</div>
+  <div class="grid">
+    <div><span class="k">elapsed</span><span class="v" id="el">&mdash;</span></div>
+    <div><span class="k">fixes received</span><span class="v" id="rx">&mdash;</span></div>
+    <div><span class="k">fixes accepted</span><span class="v" id="ok">&mdash;</span></div>
+    <div><span class="k">rej. accuracy</span><span class="v" id="ra">&mdash;</span></div>
+    <div><span class="k">rej. drift floor</span><span class="v" id="rd">&mdash;</span></div>
+    <div><span class="k">rej. jump</span><span class="v" id="rj">&mdash;</span></div>
+    <div><span class="k">no-floor total</span><span class="v" id="nf">&mdash;</span></div>
+    <div><span class="k">interactions</span><span class="v" id="ix">0</span></div>
+  </div>
+</div>
+
+<!-- ---------- always-safe live signals (do not encode distance) ---------- -->
+<div class="card">
+  <div class="hdr">Signal quality &mdash; safe to watch while walking</div>
+  <div class="grid">
+    <div><span class="k">last accuracy</span><span class="v" id="la">&mdash;</span></div>
+    <div><span class="k">wake lock</span><span class="v" id="wl">&mdash;</span></div>
+  </div>
+  <div class="note">Accuracy is GPS uncertainty, not distance travelled, so it cannot anchor
+    your judgement. Elapsed time and fix counts are hidden because both track distance.</div>
+</div>
+
+<div class="card">
+  <div class="hdr">Summary &mdash; contains no coordinates</div>
+  <pre id="out">Complete a walk, commit your manual answer, then reveal.</pre>
+  <label>Walk label + environment notes (surroundings, weather, GPS conditions, anomalies)</label>
+  <textarea id="notes" placeholder="e.g. Walk 2 &mdash; Wanstead High Street, clear sky, tall buildings one side, paused at crossing"></textarea>
+  <button id="copy" style="margin-top:10px">Copy summary</button>
+  <div class="note">Paste this into the experiment record. Verify for yourself that it contains
+    no latitude or longitude before sharing.</div>
+</div>
+
+<script>
+"use strict";
+/* ================= FROZEN CONSTANTS =================
+   IDENTICAL to walkmeter-1.0.0. v1.1.0 adds blinding only:
+   no threshold, GPS filter, accumulation or start/stop change. */
+var ALGO = "walkmeter-1.1.0";
+var ACC_GATE = 25, DRIFT_FLOOR = 5, MAX_JUMP = 100, R = 6371000;
+var BANDS = [[25,"0_25"],[75,"25_75"],[150,"75_150"],[300,"150_300"]];
+function band(m){ for(var i=0;i<BANDS.length;i++){ if(m<=BANDS[i][0]) return BANDS[i][1]; } return "over_300"; }
+function hav(a,b,c,d){var t=Math.PI/180,dp=(c-a)*t,dl=(d-b)*t,
+  x=Math.sin(dp/2)*Math.sin(dp/2)+Math.cos(a*t)*Math.cos(c*t)*Math.sin(dl/2)*Math.sin(dl/2);
+  return 2*R*Math.asin(Math.sqrt(x));}
+
+/* ---- state. `prev` is the ONLY retained fix. No coordinate array exists. ---- */
+var prev=null, total=0, totalNoFloor=0, watch=null, t0=0, tick=null, lock=null;
+var n={rx:0,ok:0,ra:0,rd:0,rj:0}, accs=[], ix=0, running=false;
+var frozen=null, committedAt=null, revealedAt=null, phase="idle";
+var $=function(id){return document.getElementById(id)};
+
+function setIx(k){ ix+=k; $("ix").textContent=ix; }
+function fmt(x){ return (Math.round(x*10)/10).toFixed(1); }
+function stats(a){
+  if(!a.length) return null;
+  var s=a.slice().sort(function(x,y){return x-y}), sum=0;
+  for(var i=0;i<a.length;i++) sum+=a[i];
+  return {min:+s[0].toFixed(1), median:+s[(s.length-1)>>1].toFixed(1),
+          max:+s[s.length-1].toFixed(1), mean:+(sum/a.length).toFixed(1), n:a.length};
+}
+
+/* ---- accumulation: byte-for-byte the v1.0.0 logic ---- */
+function onFix(p){
+  n.rx++;
+  var acc=p.coords.accuracy;
+  $("la").textContent=Math.round(acc)+" m";      // GPS quality only; encodes no distance
+  if(acc>ACC_GATE){ n.ra++; return; }            // accuracy gate
+  n.ok++; accs.push(acc);
+  var cur={lat:p.coords.latitude,lng:p.coords.longitude};
+  if(prev){
+    var d=hav(prev.lat,prev.lng,cur.lat,cur.lng);
+    if(d>MAX_JUMP){ n.rj++; }                    // teleport reject
+    else { totalNoFloor+=d;
+           if(d>=DRIFT_FLOOR) total+=d; else n.rd++; }   // drift floor
+  }
+  prev=cur;                                      // overwrite: nothing accumulates
+}
+
+async function start(){
+  if(!navigator.geolocation){ $("stat").textContent="No geolocation on this device."; return; }
+  prev=null; total=0; totalNoFloor=0; n={rx:0,ok:0,ra:0,rd:0,rj:0}; accs=[];
+  frozen=null; committedAt=null; revealedAt=null; phase="measuring";
+  t0=Date.now(); running=true; setIx(1);
+  $("go").textContent="Stop walk"; $("go").dataset.on="1";
+  $("manualCard").classList.add("hidden"); $("revealCard").classList.add("hidden");
+  $("diagCard").classList.add("hidden"); $("reveal-wrap").classList.add("hidden");
+  $("blind").classList.remove("hidden");
+  $("blindLbl").innerHTML='<span class="dot"></span>Recording &mdash; measurement hidden';
+  $("manual").disabled=false; $("manual").value="";
+  $("out").textContent="Walk in progress.";
+  $("stat").textContent="Measuring. Keep the screen on and the page in the foreground.";
+  try{ if("wakeLock" in navigator){ lock=await navigator.wakeLock.request("screen");
+        $("wl").textContent="held"; } else $("wl").textContent="unsupported"; }
+  catch(e){ $("wl").textContent="denied"; }
+  watch=navigator.geolocation.watchPosition(onFix,
+    function(e){ $("stat").textContent="Location error: "+e.message; },
+    {enableHighAccuracy:true,maximumAge:0,timeout:15000});
+}
+
+function stop(){
+  running=false; setIx(1); phase="awaiting_manual";
+  if(watch!==null) navigator.geolocation.clearWatch(watch);
+  if(tick) clearInterval(tick);
+  if(lock){ try{lock.release()}catch(e){} lock=null; }
+  var el=Math.round((Date.now()-t0)/1000);
+  prev=null;                                     // discard the last coordinate
+  $("go").textContent="Start walk"; $("go").dataset.on="0";
+  /* measurement is frozen internally here and NOT displayed */
+  frozen={algorithm:ALGO,
+    constants:{ACC_GATE_M:ACC_GATE,DRIFT_FLOOR_M:DRIFT_FLOOR,MAX_JUMP_M:MAX_JUMP},
+    bandingConvention:"LEGACY BOUNDARIES USED AS ANALYTICAL COMPARISON ONLY - NOT AUTHORISED FOR ANY LIVE MEASURED-DISTANCE CAPTURE PATH",
+    blindingProtocol:"manual-answer-committed-before-reveal",
+    measuredMeters:+fmt(total), analyticalBand:band(total),
+    diagnostic_noDriftFloorMeters:+fmt(totalNoFloor),
+    elapsedSeconds:el, samples:{received:n.rx,acceptedFix:n.ok,
+      rejectedAccuracy:n.ra,rejectedDriftFloor:n.rd,rejectedJump:n.rj},
+    accuracyMetresOfAcceptedFixes:stats(accs),
+    interactionCount:ix, wakeLock:$("wl").textContent,
+    userAgent:navigator.userAgent, stoppedAt:new Date().toISOString(),
+    containsCoordinates:false};
+  $("blindLbl").textContent="Measurement frozen and hidden";
+  $("blindWhy").textContent="Commit your own distance judgement below to unlock the result.";
+  $("manualCard").classList.remove("hidden");
+  $("stat").textContent="Walk complete. Record your own judgement first.";
+  $("out").textContent="Measurement frozen. Commit your manual answer to reveal it.";
+}
+
+$("manual").onchange=function(){ $("commit").disabled = !$("manual").value; };
+
+$("commit").onclick=function(){
+  if(!$("manual").value || phase!=="awaiting_manual") return;
+  committedAt=new Date().toISOString(); phase="committed"; setIx(1);
+  $("manual").disabled=true; $("commit").disabled=true;
+  $("commit").textContent="Manual answer committed";
+  $("cAt").textContent=committedAt;
+  $("revealCard").classList.remove("hidden");
+};
+
+$("reveal").onclick=function(){
+  if(phase!=="committed"||!frozen) return;
+  revealedAt=new Date().toISOString(); phase="revealed"; setIx(1);
+  $("blind").classList.add("hidden");
+  $("reveal-wrap").classList.remove("hidden");
+  $("diagCard").classList.remove("hidden");
+  $("m").textContent=fmt(frozen.measuredMeters);
+  $("band").textContent=frozen.analyticalBand;
+  $("el").textContent=frozen.elapsedSeconds+"s";
+  $("rx").textContent=frozen.samples.received; $("ok").textContent=frozen.samples.acceptedFix;
+  $("ra").textContent=frozen.samples.rejectedAccuracy;
+  $("rd").textContent=frozen.samples.rejectedDriftFloor;
+  $("rj").textContent=frozen.samples.rejectedJump;
+  $("nf").textContent=fmt(frozen.diagnostic_noDriftFloorMeters)+" m";
+  $("reveal").disabled=true; $("reveal").textContent="Revealed";
+  $("stat").textContent="Revealed. Copy the summary into the experiment record.";
+  render();
+};
+
+function render(){
+  if(phase!=="revealed"||!frozen) return;
+  var o=JSON.parse(JSON.stringify(frozen));
+  o.manualBand=$("manual").value||null;
+  o.manualCommittedAt=committedAt;
+  o.revealedAt=revealedAt;
+  o.manualCommittedBeforeReveal=!!(committedAt&&revealedAt&&committedAt<=revealedAt);
+  o.notes=$("notes").value||null;
+  $("out").textContent=JSON.stringify(o,null,1);
+}
+$("notes").oninput=render;
+
+$("go").onclick=function(){ running?stop():start(); };
+
+$("copy").onclick=function(){
+  var t=$("out").textContent;
+  /* clipboard is a LOCAL operation - no network */
+  if(navigator.clipboard) navigator.clipboard.writeText(t).then(function(){
+    $("copy").textContent="Copied";
+    setTimeout(function(){$("copy").textContent="Copy summary"},1500);});
+};
+
+document.addEventListener("visibilitychange",function(){
+  if(running&&document.hidden)
+    $("stat").textContent="WARNING: page backgrounded - sampling may be throttled or suspended. Record this as an anomaly.";
+});
+</script>
