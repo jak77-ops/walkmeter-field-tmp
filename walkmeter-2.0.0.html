@@ -1,0 +1,496 @@
+<title>Walkmeter 2</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --fg:#14171c; --mut:#5a6472; --line:#d8dde5; --card:#fff;
+    --go:#1b7f4b; --stop:#a52633; --accent:#1f4fd8; --warn:#8a5a00; --blind:#6b4fa8;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#101319; --fg:#eef1f6; --mut:#9aa5b4; --line:#28303c; --card:#171c24;
+    --go:#3fbc78; --stop:#ef6b78; --accent:#7fa2ff; --warn:#e0aa4a; --blind:#b39ae8;}}
+  :root[data-theme="dark"]{--bg:#101319;--fg:#eef1f6;--mut:#9aa5b4;--line:#28303c;
+    --card:#171c24;--go:#3fbc78;--stop:#ef6b78;--accent:#7fa2ff;--warn:#e0aa4a;--blind:#b39ae8;}
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);margin:0;padding:16px;
+    font:16px/1.5 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    max-width:560px;margin-inline:auto;-webkit-text-size-adjust:100%}
+  h1{font-size:1.15rem;margin:0 0 2px}
+  .sub{color:var(--mut);font-size:.82rem;margin-bottom:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:14px;margin-bottom:12px}
+  .hdr{font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--mut);margin-bottom:8px}
+  .big{font-size:2.6rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+  .band{font-size:1.3rem;font-weight:600;color:var(--accent);font-family:ui-monospace,monospace}
+  .hidden{display:none}
+  .blindbox{border:2px dashed var(--blind);border-radius:12px;padding:18px;text-align:center}
+  .blindbox .lbl{color:var(--blind);font-weight:700;font-size:.9rem;letter-spacing:.03em}
+  .blindbox .why{color:var(--mut);font-size:.8rem;margin-top:6px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--go);
+    margin-right:7px;vertical-align:middle;animation:p 1.4s ease-in-out infinite}
+  @keyframes p{0%,100%{opacity:1}50%{opacity:.25}}
+  @media (prefers-reduced-motion:reduce){.dot{animation:none}}
+  button{width:100%;padding:20px;font-size:1.15rem;font-weight:650;border-radius:12px;
+    border:none;color:#fff;cursor:pointer;-webkit-appearance:none}
+  button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  #go{background:var(--go)} #go[data-on="1"]{background:var(--stop)}
+  #commit{background:var(--blind)} #reveal{background:var(--accent)}
+  #copy{background:var(--accent);padding:14px;font-size:1rem}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:.86rem}
+  .grid div{display:flex;justify-content:space-between;gap:8px;
+    border-bottom:1px dotted var(--line);padding:3px 0}
+  .k{color:var(--mut)} .v{font-variant-numeric:tabular-nums;font-weight:600}
+  label{display:block;font-size:.86rem;color:var(--mut);margin:10px 0 4px}
+  select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;
+    background:var(--bg);color:var(--fg);font:inherit;font-size:.95rem}
+  select:disabled{opacity:.7}
+  textarea{min-height:70px;resize:vertical}
+  pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;
+    font-size:.72rem;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
+  .note{font-size:.78rem;color:var(--mut);margin-top:8px}
+  .warn{color:var(--warn);font-weight:600}
+  .frozen{font-family:ui-monospace,monospace;font-size:.72rem;color:var(--mut)}
+</style>
+
+<h1>Walkmeter 2</h1>
+<div class="sub">SARScore first-party travelled-distance experiment &middot; disposable, not the
+Essential Path &middot; writes nothing to SARScore &middot; coordinates are transient only</div>
+
+<div class="card">
+  <div class="hdr">Frozen hybrid estimator</div>
+  <div class="frozen">
+    ALGO v2.0.0 &middot; hybrid: browser speed + bounded position fallback<br>
+    V_GATE 0.30 &middot; V_MAX 3.0 m/s &middot; ACC_GATE 25 m &middot; GAP_MAX 5 s<br>
+    GAP_SINGLE 20 s &middot; GAP_CUM 30 s &middot; BUF_MAX 20 &middot; K 3 &middot; C_MIN 3 m<br>
+    Accounting invariant: every elapsed interval is credited exactly once by
+    speed, exactly once by fallback, or explicitly unmeasured.<br>
+    `speed` is browser-supplied horizontal speed. No source or accuracy claimed.
+  </div>
+</div>
+
+<div class="card">
+  <div id="blind" class="blindbox">
+    <div class="lbl" id="blindLbl">Measurement hidden</div>
+    <div class="why" id="blindWhy">The result stays hidden until you have committed your own
+      distance judgement, so the number cannot anchor your answer.</div>
+  </div>
+  <div id="reveal-wrap" class="hidden">
+    <div class="big"><span id="m">0.0</span>
+      <span style="font-size:1rem;color:var(--mut)">m</span></div>
+    <div class="band" id="band">&mdash;</div>
+  </div>
+  <div class="note" id="stat">Idle. Tap start at your starting point, before you begin walking.</div>
+</div>
+
+<button id="go">Start walk</button>
+
+<div class="card hidden" id="manualCard" style="margin-top:12px">
+  <div class="hdr">Step 1 &mdash; your own judgement</div>
+  <label>&ldquo;How far was it from your starting point to the way into the place?&rdquo;</label>
+  <select id="manual">
+    <option value="">Select the band you would have chosen&hellip;</option>
+    <option value="0_25">0&ndash;25 m</option>
+    <option value="25_75">25&ndash;75 m</option>
+    <option value="75_150">75&ndash;150 m</option>
+    <option value="150_300">150&ndash;300 m</option>
+    <option value="over_300">over 300 m</option>
+  </select>
+  <div class="note warn">Answer from your memory of the walk. Once committed this cannot be
+    changed.</div>
+  <button id="commit" style="margin-top:10px" disabled>Commit manual answer</button>
+</div>
+
+<div class="card hidden" id="revealCard">
+  <div class="hdr">Step 2 &mdash; reveal</div>
+  <div class="note">Manual answer committed at <span id="cAt" class="v"></span>.</div>
+  <button id="reveal" style="margin-top:10px">Reveal measurement</button>
+</div>
+
+<div class="card hidden" id="diagCard">
+  <div class="hdr">Diagnostics</div>
+  <div class="grid">
+    <div><span class="k">speed path</span><span class="v" id="dsm">&mdash;</span></div>
+    <div><span class="k">fallback path</span><span class="v" id="dfm">&mdash;</span></div>
+    <div><span class="k">speed seconds</span><span class="v" id="dss">&mdash;</span></div>
+    <div><span class="k">fallback seconds</span><span class="v" id="dfs">&mdash;</span></div>
+    <div><span class="k">unmeasured seconds</span><span class="v" id="dus">&mdash;</span></div>
+    <div><span class="k">ledger balances</span><span class="v" id="dbal">&mdash;</span></div>
+    <div><span class="k">gap seconds</span><span class="v" id="dgs">&mdash;</span></div>
+    <div><span class="k">gap affected</span><span class="v" id="dga">&mdash;</span></div>
+    <div><span class="k">windows credited</span><span class="v" id="dwc">&mdash;</span></div>
+    <div><span class="k">sub-gate samples</span><span class="v" id="dsg">&mdash;</span></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="hdr">Signal quality &mdash; safe to watch while walking</div>
+  <div class="grid">
+    <div><span class="k">last accuracy</span><span class="v" id="la">&mdash;</span></div>
+    <div><span class="k">wake lock</span><span class="v" id="wl">&mdash;</span></div>
+  </div>
+  <div class="note">Accuracy is GPS uncertainty, not distance travelled, so it cannot anchor
+    your judgement. Elapsed time and fix counts are hidden because both track distance.</div>
+</div>
+
+<div class="card">
+  <div class="hdr">Summary &mdash; contains no coordinates</div>
+  <pre id="out">Complete a walk, commit your manual answer, then reveal.</pre>
+  <label>Walk label + environment notes</label>
+  <textarea id="notes" placeholder="e.g. Walk 2 &mdash; high street, clear sky, paused at crossing"></textarea>
+  <button id="copy" style="margin-top:10px">Copy summary</button>
+  <div class="note">Paste into the experiment record. Verify for yourself that it contains no
+    latitude or longitude before sharing.</div>
+</div>
+
+<script>
+"use strict";
+/* ==WALKMETER2-CORE-START==
+   Pure, testable estimator core. No DOM, no browser APIs, no I/O.
+   The synthetic test harness extracts THIS block from THIS file and runs it,
+   so the tests exercise the shipped bytes rather than a copy.
+
+   `speed` is treated only as browser-supplied horizontal speed. No claim is made
+   about its source, derivation or accuracy.
+
+   ACCOUNTING INVARIANT
+   Every elapsed interval between consecutive received fixes is classified exactly
+   once as: credited-by-speed, credited-by-fallback, or unmeasured. No interval is
+   ever credited twice. Intervals before the first fix and after the last fix are
+   unmeasured by definition. */
+
+var WM2_CONST = {
+  V_GATE: 0.30,        /* m/s  - accessibility floor (see protocol); NOT from probe data */
+  V_MAX: 3.0,          /* m/s  - human locomotion bound */
+  ACC_GATE: 25,        /* m    - carried from v1.1.0, never exercised, not validated */
+  GAP_MAX: 5,          /* s    - beyond this, sampling was suspended, not jitter */
+  GAP_SINGLE_FLAG: 20, /* s    - PROSPECTIVE experimental invalidation threshold */
+  GAP_CUM_FLAG: 30,    /* s    - cumulative equivalent */
+  BUF_MAX: 20,         /* fixes - hard bound on the transient fallback buffer */
+  MIN_WIN_FIXES: 6,    /* fixes - two K-blocks minimum */
+  K: 3,                /* fixes - end-centroid block size */
+  C_MIN: 3,            /* m    - floor so a window cannot contribute on rounding alone */
+  R: 6371000
+};
+
+function wm2_hav(a,b,c,d){
+  var t=Math.PI/180, dp=(c-a)*t, dl=(d-b)*t;
+  var x=Math.sin(dp/2)*Math.sin(dp/2)+Math.cos(a*t)*Math.cos(c*t)*Math.sin(dl/2)*Math.sin(dl/2);
+  return 2*WM2_CONST.R*Math.asin(Math.sqrt(x));
+}
+function wm2_centroid(pts){
+  var la=0, ln=0;
+  for(var i=0;i<pts.length;i++){ la+=pts[i].lat; ln+=pts[i].lng; }
+  return {lat:la/pts.length, lng:ln/pts.length};
+}
+function wm2_band(m){
+  if(m<=25) return "0_25";
+  if(m<=75) return "25_75";
+  if(m<=150) return "75_150";
+  if(m<=300) return "150_300";
+  return "over_300";
+}
+
+function createWM2(C){
+  C = C || WM2_CONST;
+  var s = {
+    tStart:null, tStop:null, firstFixT:null, lastFixT:null,
+    total:0, speedMeters:0, fallbackMeters:0,
+    speedSeconds:0, fallbackSeconds:0, unmeasuredSeconds:0,
+    preAcqSeconds:0, postLastSeconds:0,
+    intervalsClassified:0,
+    buf:[], winAnchorT:null, winSeconds:0,
+    anchorPos:null, anchorT:null,
+    windows:[],
+    gapSeconds:0, gapAffected:false, maxBufLen:0,
+    accs:[], dts:[],
+    n:{received:0, speedSamples:0, subGate:0, accuracyRejects:0, nullSamples:0,
+       gapEvents:0, shortWindows:0, windowsCredited:0, windowsZero:0, bufferFlushes:0}
+  };
+
+  function classify(dt, kind){
+    s.intervalsClassified++;
+    if(kind==="speed") s.speedSeconds+=dt;
+    else if(kind==="fallback"){ s.fallbackSeconds+=dt; s.winSeconds+=dt; }
+    else s.unmeasuredSeconds+=dt;
+  }
+
+  /* Close the open fallback window. Its span covers EXACTLY the intervals that were
+     classified "fallback" while it was open - never more, so it can never overlap an
+     interval already credited by speed. */
+  function closeWindow(reason){
+    if(s.buf.length===0){ s.winSeconds=0; s.winAnchorT=null; return; }
+    var n=s.buf.length, t0=s.winAnchorT, t1=s.buf[n-1].t, secs=s.winSeconds;
+    if(n < C.MIN_WIN_FIXES){
+      /* Not enough fixes to form two end-centroids: reclassify this window's
+         intervals as UNMEASURED rather than silently crediting zero. */
+      s.fallbackSeconds-=secs; s.unmeasuredSeconds+=secs;
+      s.n.shortWindows++;
+      s.windows.push({t0:t0,t1:t1,seconds:secs,meters:0,state:"unmeasured-short",reason:reason});
+    } else {
+      var K=Math.min(C.K, Math.floor(n/2));
+      var A=wm2_centroid(s.buf.slice(0,K)), B=wm2_centroid(s.buf.slice(n-K));
+      var chord=wm2_hav(A.lat,A.lng,B.lat,B.lng);
+      var mean=0; for(var i=0;i<n;i++) mean+=s.buf[i].acc; mean/=n;
+      var gate=Math.max(C.C_MIN, 0.5*mean);
+      if(chord>=gate){
+        s.fallbackMeters+=chord; s.total+=chord; s.n.windowsCredited++;
+        s.windows.push({t0:t0,t1:t1,seconds:secs,meters:chord,state:"credited",reason:reason});
+      } else {
+        /* Measured and found to be ~stationary. CREDITED ZERO - not unmeasured. */
+        s.n.windowsZero++;
+        s.windows.push({t0:t0,t1:t1,seconds:secs,meters:0,state:"credited-zero",reason:reason});
+      }
+    }
+    s.buf=[]; s.winSeconds=0; s.winAnchorT=null;
+  }
+
+  function setAnchor(f){ s.anchorPos={lat:f.lat,lng:f.lng,acc:f.accuracy}; s.anchorT=f.timestamp; }
+  function dropAnchor(){ s.anchorPos=null; s.anchorT=null; }
+
+  return {
+    start:function(t){ s.tStart=t; },
+
+    onFix:function(f){
+      s.n.received++;
+      if(typeof f.accuracy==="number" && isFinite(f.accuracy)) s.accs.push(f.accuracy);
+
+      /* ---- first fix: nothing before it is measurable ---- */
+      if(s.firstFixT===null){
+        s.firstFixT=f.timestamp; s.lastFixT=f.timestamp;
+        s.preAcqSeconds=(f.timestamp - s.tStart)/1000;   /* unmeasured by definition */
+        if(f.accuracy<=C.ACC_GATE){
+          if(f.speed===null||f.speed===undefined||!isFinite(f.speed)){
+            /* startup null run: this fix anchors the first window */
+            s.n.nullSamples++;
+            s.winAnchorT=f.timestamp;
+            s.buf.push({lat:f.lat,lng:f.lng,acc:f.accuracy,t:f.timestamp});
+            if(s.buf.length>s.maxBufLen) s.maxBufLen=s.buf.length;
+          } else { s.n.speedSamples++; }
+          setAnchor(f);
+        } else { s.n.accuracyRejects++; dropAnchor(); }
+        return;
+      }
+
+      var dt=(f.timestamp - s.lastFixT)/1000;
+      s.lastFixT=f.timestamp;                 /* ALWAYS advances - no interval reuse */
+      if(dt>0) s.dts.push(dt);
+
+      /* ---- 1. long sampling gap ---- */
+      if(dt > C.GAP_MAX){
+        closeWindow("gap");                   /* window ends at the PREVIOUS fix */
+        classify(dt,"unmeasured");            /* nothing credited across the gap */
+        s.gapSeconds+=dt; s.n.gapEvents++;
+        if(dt >= C.GAP_SINGLE_FLAG) s.gapAffected=true;
+        if(s.gapSeconds >= C.GAP_CUM_FLAG) s.gapAffected=true;
+        dropAnchor();
+        if(f.accuracy<=C.ACC_GATE){
+          if(f.speed===null||f.speed===undefined||!isFinite(f.speed)){
+            s.n.nullSamples++;
+            s.winAnchorT=f.timestamp;         /* fresh window starts here */
+            s.buf.push({lat:f.lat,lng:f.lng,acc:f.accuracy,t:f.timestamp});
+            if(s.buf.length>s.maxBufLen) s.maxBufLen=s.buf.length;
+          } else s.n.speedSamples++;
+          setAnchor(f);
+        } else { s.n.accuracyRejects++; }
+        return;
+      }
+
+      /* ---- 2. accuracy rejection ---- */
+      if(!(typeof f.accuracy==="number" && f.accuracy<=C.ACC_GATE)){
+        s.n.accuracyRejects++;
+        closeWindow("accuracy-reject");       /* avoid a hole inside a window span */
+        classify(dt,"unmeasured");
+        dropAnchor();
+        return;
+      }
+
+      /* ---- 3. speed supplied ---- */
+      if(f.speed!==null && f.speed!==undefined && isFinite(f.speed)){
+        closeWindow("speed-returned");        /* covers intervals up to the previous fix */
+        s.n.speedSamples++;
+        if(f.speed>=C.V_GATE && f.speed<=C.V_MAX){
+          var m=f.speed*dt; s.speedMeters+=m; s.total+=m;
+        } else s.n.subGate++;
+        classify(dt,"speed");                 /* credited by speed, possibly zero */
+        setAnchor(f);
+        return;
+      }
+
+      /* ---- 4. speed null -> position fallback ---- */
+      s.n.nullSamples++;
+      if(s.buf.length===0){
+        if(s.anchorPos){
+          /* seed with the last accepted position so the window spans exactly the
+             intervals about to be classified "fallback" - closing the hole between
+             the last speed fix and the first null fix */
+          s.buf.push({lat:s.anchorPos.lat,lng:s.anchorPos.lng,acc:s.anchorPos.acc,t:s.anchorT});
+          s.winAnchorT=s.anchorT;
+        } else {
+          s.winAnchorT=s.lastFixT;
+        }
+      }
+      s.buf.push({lat:f.lat,lng:f.lng,acc:f.accuracy,t:f.timestamp});
+      if(s.buf.length>s.maxBufLen) s.maxBufLen=s.buf.length;
+      classify(dt,"fallback");
+      setAnchor(f);
+      if(s.buf.length >= C.BUF_MAX){
+        closeWindow("buffer-full");
+        s.n.bufferFlushes++;
+        /* continuity: the next window will be seeded from this fix via the anchor */
+      }
+    },
+
+    stop:function(t){
+      s.tStop=t;
+      closeWindow("stop");                    /* the final null run is CREDITED, not dropped */
+      s.buf=[]; s.winSeconds=0; s.winAnchorT=null;   /* cleared unconditionally */
+      s.postLastSeconds = s.lastFixT===null ? (t-s.tStart)/1000 : (t-s.lastFixT)/1000;
+
+      var elapsed=(s.tStop-s.tStart)/1000;
+      var ledger=s.preAcqSeconds+s.speedSeconds+s.fallbackSeconds+s.unmeasuredSeconds+s.postLastSeconds;
+      var balances=Math.abs(ledger-elapsed)<0.001;
+      var intervalsExpected=Math.max(0,s.n.received-1);
+
+      var winSecs=0;
+      for(var i=0;i<s.windows.length;i++)
+        if(s.windows[i].state!=="unmeasured-short") winSecs+=s.windows[i].seconds;
+
+      return {
+        algorithm:"walkmeter-2.0.0",
+        speedNote:"`speed` is the browser-supplied GeolocationCoordinates.speed value. No source, derivation or accuracy is claimed.",
+        bandingConvention:"LEGACY BOUNDARIES USED AS ANALYTICAL COMPARISON ONLY - NOT AUTHORISED FOR ANY LIVE MEASURED-DISTANCE CAPTURE PATH",
+        measuredMeters:+s.total.toFixed(1),
+        analyticalBand:wm2_band(s.total),
+        gapAffected:s.gapAffected,
+        usableForBandComparison:!s.gapAffected,
+        speedPathMeters:+s.speedMeters.toFixed(1),
+        fallbackPathMeters:+s.fallbackMeters.toFixed(1),
+        ledger:{
+          elapsedSeconds:+elapsed.toFixed(3),
+          preAcquisitionSeconds:+s.preAcqSeconds.toFixed(3),
+          speedSeconds:+s.speedSeconds.toFixed(3),
+          fallbackSeconds:+s.fallbackSeconds.toFixed(3),
+          unmeasuredSeconds:+s.unmeasuredSeconds.toFixed(3),
+          postLastFixSeconds:+s.postLastSeconds.toFixed(3),
+          balances:balances,
+          intervalsClassified:s.intervalsClassified,
+          intervalsExpected:intervalsExpected,
+          intervalsMatch:s.intervalsClassified===intervalsExpected,
+          creditedWindowSeconds:+winSecs.toFixed(3),
+          windowSecondsMatchFallback:Math.abs(winSecs-s.fallbackSeconds)<0.001
+        },
+        gapSeconds:+s.gapSeconds.toFixed(2),
+        counts:s.n,
+        maxBufferLength:s.maxBufLen,
+        windows:s.windows.map(function(w){
+          return {seconds:+w.seconds.toFixed(2), meters:+w.meters.toFixed(1),
+                  state:w.state, reason:w.reason};
+        }),
+        containsCoordinates:false
+      };
+    },
+    _state:function(){ return s; }
+  };
+}
+/* ==WALKMETER2-CORE-END== */
+
+/* ---------------- browser shell (not part of the tested core) ---------------- */
+var est=null, watch=null, lock=null, running=false, phase="idle";
+var frozen=null, committedAt=null, revealedAt=null, ix=0;
+var $=function(id){return document.getElementById(id)};
+
+async function start(){
+  if(!navigator.geolocation){ $("stat").textContent="No geolocation on this device."; return; }
+  est=createWM2(WM2_CONST); est.start(Date.now());
+  frozen=null; committedAt=null; revealedAt=null; phase="measuring"; running=true; ix++;
+  $("go").textContent="Stop walk"; $("go").dataset.on="1";
+  $("manualCard").classList.add("hidden"); $("revealCard").classList.add("hidden");
+  $("diagCard").classList.add("hidden"); $("reveal-wrap").classList.add("hidden");
+  $("blind").classList.remove("hidden");
+  $("blindLbl").innerHTML='<span class="dot"></span>Recording &mdash; measurement hidden';
+  $("manual").disabled=false; $("manual").value=""; $("commit").disabled=true;
+  $("out").textContent="Walk in progress.";
+  $("stat").textContent="Measuring. Keep the screen on and the page in the foreground.";
+  try{ if("wakeLock" in navigator){ lock=await navigator.wakeLock.request("screen");
+        $("wl").textContent="held"; } else $("wl").textContent="unsupported"; }
+  catch(e){ $("wl").textContent="denied"; }
+  watch=navigator.geolocation.watchPosition(function(p){
+      $("la").textContent=Math.round(p.coords.accuracy)+" m";
+      est.onFix({lat:p.coords.latitude, lng:p.coords.longitude,
+                 accuracy:p.coords.accuracy, speed:p.coords.speed, timestamp:p.timestamp});
+    },
+    function(e){ $("stat").textContent="Location error: "+e.message; },
+    {enableHighAccuracy:true,maximumAge:0,timeout:15000});
+}
+
+function stop(){
+  running=false; phase="awaiting_manual"; ix++;
+  if(watch!==null) navigator.geolocation.clearWatch(watch);
+  if(lock){ try{lock.release()}catch(e){} lock=null; }
+  frozen=est.stop(Date.now());
+  frozen.wakeLock=$("wl").textContent;
+  frozen.userAgent=navigator.userAgent;
+  frozen.interactionCount=ix;
+  frozen.blindingProtocol="manual-answer-committed-before-reveal";
+  est=null;                                   /* estimator and its buffer released */
+  $("go").textContent="Start walk"; $("go").dataset.on="0";
+  $("blindLbl").textContent="Measurement frozen and hidden";
+  $("blindWhy").textContent="Commit your own distance judgement below to unlock the result.";
+  $("manualCard").classList.remove("hidden");
+  $("stat").textContent="Walk complete. Record your own judgement first.";
+  $("out").textContent="Measurement frozen. Commit your manual answer to reveal it.";
+}
+
+$("manual").onchange=function(){ $("commit").disabled = !$("manual").value; };
+$("commit").onclick=function(){
+  if(!$("manual").value || phase!=="awaiting_manual") return;
+  committedAt=new Date().toISOString(); phase="committed"; ix++;
+  $("manual").disabled=true; $("commit").disabled=true;
+  $("commit").textContent="Manual answer committed";
+  $("cAt").textContent=committedAt;
+  $("revealCard").classList.remove("hidden");
+};
+$("reveal").onclick=function(){
+  if(phase!=="committed"||!frozen) return;
+  revealedAt=new Date().toISOString(); phase="revealed"; ix++;
+  $("blind").classList.add("hidden");
+  $("reveal-wrap").classList.remove("hidden");
+  $("diagCard").classList.remove("hidden");
+  $("m").textContent=frozen.measuredMeters.toFixed(1);
+  $("band").textContent=frozen.analyticalBand+(frozen.gapAffected?"  (GAP-AFFECTED)":"");
+  $("dsm").textContent=frozen.speedPathMeters+" m";
+  $("dfm").textContent=frozen.fallbackPathMeters+" m";
+  $("dss").textContent=frozen.ledger.speedSeconds+" s";
+  $("dfs").textContent=frozen.ledger.fallbackSeconds+" s";
+  $("dus").textContent=frozen.ledger.unmeasuredSeconds+" s";
+  $("dbal").textContent=frozen.ledger.balances?"yes":"NO";
+  $("dgs").textContent=frozen.gapSeconds+" s";
+  $("dga").textContent=frozen.gapAffected?"YES - not usable":"no";
+  $("dwc").textContent=frozen.counts.windowsCredited;
+  $("dsg").textContent=frozen.counts.subGate;
+  $("reveal").disabled=true; $("reveal").textContent="Revealed";
+  $("stat").textContent="Revealed. Copy the summary into the experiment record.";
+  render();
+};
+function render(){
+  if(phase!=="revealed"||!frozen) return;
+  var o=JSON.parse(JSON.stringify(frozen));
+  o.manualBand=$("manual").value||null;
+  o.manualCommittedAt=committedAt; o.revealedAt=revealedAt;
+  o.manualCommittedBeforeReveal=!!(committedAt&&revealedAt&&committedAt<=revealedAt);
+  o.notes=$("notes").value||null;
+  $("out").textContent=JSON.stringify(o,null,1);
+}
+$("notes").oninput=render;
+$("go").onclick=function(){ running?stop():start(); };
+$("copy").onclick=function(){
+  var t=$("out").textContent;
+  if(navigator.clipboard) navigator.clipboard.writeText(t).then(function(){
+    $("copy").textContent="Copied";
+    setTimeout(function(){$("copy").textContent="Copy summary"},1500);});
+};
+document.addEventListener("visibilitychange",function(){
+  if(running&&document.hidden)
+    $("stat").textContent="WARNING: page backgrounded - sampling may be throttled or suspended. Record this as an anomaly.";
+});
+</script>

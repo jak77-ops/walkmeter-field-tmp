@@ -8,6 +8,9 @@ Geolocation API refuses to run over `file://` or plain HTTP.
 
 - `walkmeter-1.1.0.html` — frozen measurement instrument, served byte-for-byte unmodified.
   SHA-256 `a60bd9169ee87593f15e545199ff6c038349cd90cf136bb1fb930f126d59f8a4`
+- `walkmeter-2.0.0.html` — frozen hybrid measurement instrument (speed + bounded position
+  fallback), served byte-for-byte unmodified.
+  SHA-256 `6f49a771271f543c2df5092e3fb2c3553c5abb9f3384cdd0e687011dd61c4d51`
 - `speedprobe-1.0.0.html` — frozen capability probe. Reads only `coords.speed`,
   `coords.accuracy` and `timestamp`; never reads latitude or longitude; computes no distance.
   SHA-256 `66a9cd57607ff38e4862dffe04969c79108d0a2e0074f4539666c2dcedc95c3f`
